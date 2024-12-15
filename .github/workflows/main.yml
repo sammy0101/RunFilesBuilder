@@ -15,7 +15,7 @@ on:
 
 jobs:
   build:
-    if: ${{ github.repository == 'wukongdaily/RunFilesBuilder' }}
+    #if: ${{ github.repository == 'wukongdaily/RunFilesBuilder' }}
     runs-on: ubuntu-22.04
 
     steps:
