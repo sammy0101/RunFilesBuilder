@@ -9,6 +9,8 @@
 name: Make Passwall run files
 
 on:
+  schedule: # 定時觸發
+    - cron: '0 0 * * *' # 每天 UTC 0:00
   workflow_dispatch:
 
 jobs:
