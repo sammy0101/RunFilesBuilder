@@ -8,6 +8,8 @@
 name: Make ShadowsocksPlus+ run files
 
 on:
+schedule:
+    - cron: '0 16 * * *'  # 每天 UTC 16:00（香港時間 00:00）
   workflow_dispatch:
     inputs:
       package_version:
