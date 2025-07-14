@@ -3,7 +3,7 @@
 # Description: Build RunFiles using GitHub Actions
 # Lisence: MIT
 # Author: wukongdaily
-# Blog: wkdaily.cpolar.top
+# Blog: wkdaily.cpolar.cn
 #=================================================
 
 name: Make OpenClash run files 
@@ -103,7 +103,7 @@ jobs:
           tag_name: ${{ env.version }}
           target_commitish: ${{ github.ref_name }}
           prerelease: false
-          body: "![Github](https://img.shields.io/badge/OpenClash.run-123456?logo=github&logoColor=fff&labelColor=red&style=for-the-badge) [![Github](https://img.shields.io/badge/国内加速站下载-FC7C0D?logo=github&logoColor=fff&labelColor=000&style=for-the-badge)](https://wkdaily.cpolar.top/archives/1) ![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/wukongdaily/RunFilesBuilder/${{ env.version }}/total?style=for-the-badge&labelColor=black&color=%2325c2a0)"
+          body: "![Github](https://img.shields.io/badge/OpenClash.run-123456?logo=github&logoColor=fff&labelColor=red&style=for-the-badge) [![Github](https://img.shields.io/badge/国内加速站下载-FC7C0D?logo=github&logoColor=fff&labelColor=000&style=for-the-badge)](https://wkdaily.cpolar.cn/archives/1) ![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/wukongdaily/RunFilesBuilder/${{ env.version }}/total?style=for-the-badge&labelColor=black&color=%2325c2a0)"
 
       - name: Upload run files as release assets
         uses: softprops/action-gh-release@v2.1.0

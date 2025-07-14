@@ -7,7 +7,8 @@
 >> 这是一个工作流。同步各位大佬项目里最新编译的ipk文件 生成适用于iStoreOS/OpenWrt 用的run自解压包<br>
 >> 本质上是利用makeslef,将ipk和shell文件打包成自解压程序。<br>
 >> iStoreOS 可以在iStore商店手动安装<br>
->> ImmortalWrt 可下载后 使用 `sh adguardhome.run `来安装
+>> ImmortalWrt或者其他OpenWrt 可下载后 使用 `sh xxx.run `来安装<br>
+>> 使用 `sh xxx.run --target dir --noexec ` 只解压到dir目录 不执行安装
 > <img src="https://github.com/user-attachments/assets/3f5dabba-1efa-4e67-bf5b-86a27c114902" height=40>
 
 ## 实现原理和操作指南

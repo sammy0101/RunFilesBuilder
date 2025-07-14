@@ -29,7 +29,7 @@ sh xxx.run
 
 ## run 自解压包里包含什么
 - run自解压包不是加密的 任何人都可以查看解压后的内容
-- sh xx.run --target xx  该命令就是解压所有文件到xx文件夹 无任何秘密
+- `sh xx.run --target dir --noexec ` 该命令就是解压所有文件到dir文件夹 无任何秘密 压缩方法来自20多年前的makeself项目
 - AdGuardHome这个run中包含了 2个ipk 和一个AdGuardHome项目最新release的二进制可执行文件——adg内核，
 - 以及一个用于安装的脚本install.sh
 - 一个是 adguardhome.ipk 它是用于复制内核文件用的 也是界面的依赖文件

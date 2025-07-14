@@ -3,7 +3,7 @@
 # Description: Build RunFiles using GitHub Actions
 # Lisence: MIT
 # Author: wukongdaily
-# Blog: wkdaily.cpolar.top
+# Blog: wkdaily.cpolar.cn
 #=================================================
 name: Make ShadowsocksPlus+ run files
 
@@ -59,7 +59,7 @@ jobs:
         run: |
           echo "Get PACKAGE_VERSION=$PACKAGE_VERSION"
           
-          FILE_PREFIXES=("dns2tcp" "lua-neturl" "chinadns-ng" "dns2socks" "hysteria" "ipt2socks" "microsocks" "mosdns" "naiveproxy" "redsocks2" "shadowsocksr-libev" "shadowsocks-rust" "shadow-tls" "simple-obfs-client" "tcping" "trojan" "tuic-client" "v2ray-plugin" "xray-core" "luci-app-ssr-plus")
+          FILE_PREFIXES=("shadowsocks-libev-ss-server" "dns2tcp" "lua-neturl" "chinadns-ng" "dns2socks" "hysteria" "ipt2socks" "microsocks" "mosdns" "naiveproxy" "redsocks2" "shadowsocksr-libev" "shadowsocks-rust" "shadow-tls" "simple-obfs-client" "tcping" "trojan" "tuic-client" "v2ray-plugin" "xray-core" "luci-app-ssr-plus")
           EXCLUDE_PREFIXES=("luci-app-chinadns-ng" "luci-app-microsocks" "luci-app-mosdns" "luci-app-naiveproxy" "luci-app-redsocks2" "luci-app-shadowsocks")
           
           BASE_URL_X86="https://dl.openwrt.ai/$PACKAGE_VERSION/x86_64/kiddin9/"
@@ -233,7 +233,7 @@ jobs:
         with:
           tag_name: "ShadowsocksPlus+"
           name: SSRP-${{ env.ssrp_version }}
-          body: "![Github](https://img.shields.io/badge/SSRP.run-123456?logo=github&logoColor=fff&labelColor=blue&style=for-the-badge) [![Github](https://img.shields.io/badge/国内加速站下载-FC7C0D?logo=github&logoColor=fff&labelColor=000&style=for-the-badge)](https://wkdaily.cpolar.top/archives/1) ![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/wukongdaily/RunFilesBuilder/ShadowsocksPlus%2B/total?style=for-the-badge&labelColor=black&color=%2325c2a0)"
+          body: "![Github](https://img.shields.io/badge/SSRP.run-123456?logo=github&logoColor=fff&labelColor=blue&style=for-the-badge) [![Github](https://img.shields.io/badge/国内加速站下载-FC7C0D?logo=github&logoColor=fff&labelColor=000&style=for-the-badge)](https://wkdaily.cpolar.cn/archives/1) ![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/wukongdaily/RunFilesBuilder/ShadowsocksPlus%2B/total?style=for-the-badge&labelColor=black&color=%2325c2a0)"
           files: makeself/*.run
           token: ${{ secrets.GITHUB_TOKEN }}
         env:

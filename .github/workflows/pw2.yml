@@ -3,244 +3,123 @@
 # Description: Build RunFiles using GitHub Actions
 # Lisence: MIT
 # Author: wukongdaily
-# Blog: wkdaily.cpolar.top
+# Blog: wkdaily.cpolar.cn
 #=================================================
-name: Make PassWall2 run files
+
+name: NEW Make Passwall2 run files
 
 on:
   workflow_dispatch:
-    inputs:
-      package_version:
-        description: '这里是包版本'
-        required: false
-        default: 'packages-24.10'  
 
 jobs:
   build:
-    runs-on: ubuntu-22.04 
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Clone makeself repo
+        uses: actions/checkout@v3
+      
+      - name: Fetch latest release tag from Passwall2
+        id: fetch_latest_tag
         run: |
-          git clone https://github.com/megastep/makeself.git
+          latest_tag=$(curl -s https://api.github.com/repos/xiaorouji/openwrt-passwall2/releases/latest | jq -r '.tag_name')
+          echo "LATEST_TAG=$latest_tag" >> $GITHUB_ENV
 
-      - name: Create directories for x86_64 and a53 and set PACKAGE_VERSION
+      - name: Clone makeself repository
+        run: git clone https://github.com/megastep/makeself.git
+
+      - name: Download latest Passwall files
         run: |
-          mkdir -p x86_64/depends a53/depends
-          package_version="${{ github.event.inputs.package_version }}"
-          if [ -z "$package_version" ]; then
-            package_version="packages-24.10"
+          mkdir -p downloads
+          cd downloads
+          curl -LO $(curl -s https://api.github.com/repos/xiaorouji/openwrt-passwall2/releases/latest | grep -oP '"browser_download_url":\s*".*passwall_packages_ipk_x86_64.zip"' | cut -d '"' -f 4)
+          curl -LO $(curl -s https://api.github.com/repos/xiaorouji/openwrt-passwall2/releases/latest | grep -oP '"browser_download_url":\s*".*passwall_packages_ipk_aarch64_cortex-a53.zip"' | cut -d '"' -f 4)
+          curl -LO $(curl -s https://api.github.com/repos/xiaorouji/openwrt-passwall2/releases/latest | grep -oP '"browser_download_url":\s*".*luci-24.10.*\.ipk"' | head -1 | cut -d '"' -f 4)
+          curl -LO $(curl -s https://api.github.com/repos/xiaorouji/openwrt-passwall2/releases/latest | grep -oP '"browser_download_url":\s*".*luci-24.10.*\.ipk"' | tail -1 | cut -d '"' -f 4)
+      
+      - name: Organize files for x86_64
+        run: |
+          mkdir -p passwall_x86_64/depends passwall_x86_64/main
+          unzip downloads/passwall_packages_ipk_x86_64.zip -d passwall_x86_64/depends
+          rm downloads/passwall_packages_ipk_x86_64.zip
+          cp downloads/luci-24.10*.ipk passwall_x86_64/main/
+
+      - name: Organize files for aarch64_cortex-a53
+        run: |
+          mkdir -p passwall_aarch64/depends passwall_aarch64/main
+          unzip downloads/passwall_packages_ipk_aarch64_cortex-a53.zip -d passwall_aarch64/depends
+          rm downloads/passwall_packages_ipk_aarch64_cortex-a53.zip
+          cp downloads/luci-24.10*.ipk passwall_aarch64/main/
+
+      - name: Create install.sh scripts
+        run: |
+          cat <<EOF > passwall_x86_64/install.sh
+          #!/bin/sh
+          opkg update
+          if [ $? -ne 0 ]; then
+              echo "update failed。"
+              exit 1
           fi
-          echo "PACKAGE_VERSION=$package_version" >> $GITHUB_ENV
-         
+          opkg install iptables-mod-tproxy
+          opkg install iptables-mod-socket
+          opkg install iptables-mod-iprange
+          opkg install iptables-mod-conntrack-extra
+          opkg install depends/*.ipk
+          opkg install main/*.ipk
+          EOF
+          chmod +x passwall_x86_64/install.sh
+          cp passwall_x86_64/install.sh passwall_aarch64/install.sh
 
-      - name: Download ipk files for x86_64 and a53
+      - name: Move passwall2 directories to makeself
         run: |
-          echo "Get PACKAGE_VERSION=$PACKAGE_VERSION"
-          
-          FILE_PREFIXES=("luci-app-passwall2" "geoview" "hysteria" "naiveproxy" "shadowsocks-rust-sslocal" "shadowsocks-rust-ssserver" "shadowsocksr-libev-ssr-local" "shadowsocksr-libev-ssr-redir" "shadowsocksr-libev-ssr-server" "simple-obfs" "sing-box" "tcping" "tuic-client" "v2ray-geoip" "v2ray-geosite" "v2ray-plugin" "xray-core")
-          EXCLUDE_PREFIXES=("luci-app-naiveproxy" "simple-obfs-client" "simple-obfs-server")
-          
-          BASE_URL_X86="https://dl.openwrt.ai/$PACKAGE_VERSION/x86_64/kiddin9/"
-          echo "Fetching x86 directory page from $BASE_URL_X86"
-          wget -qO- "$BASE_URL_X86" | \
-          while IFS= read -r LINE; do
-              for PREFIX in "${FILE_PREFIXES[@]}"; do
-                  if [[ "$LINE" == *"$PREFIX"* ]]; then
-                      FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
-                      if [[ -z "$FILE" ]]; then
-                          # echo "No file found in line, skipping"
-                          continue
-                      fi
-                      exclude_file=false
-                      for exclude_prefix in "${EXCLUDE_PREFIXES[@]}"; do
-                          if [[ "$FILE" == $exclude_prefix* ]]; then
-                              exclude_file=true
-                              break
-                          fi
-                      done
-                      if $exclude_file; then
-                          echo "Skip file: $FILE"
-                          continue
-                      fi
-                      FILE_URL="${BASE_URL_X86}${FILE}"
-                      echo "Found file: $FILE_URL"
-                      curl -L --fail "$FILE_URL" -o "x86_64/depends/$(basename $FILE_URL)" -#
-                    fi
-              done
-          done
+          mv passwall_x86_64 makeself/
+          mv passwall_aarch64 makeself/
 
-          BASE_URL_A53="https://dl.openwrt.ai/$PACKAGE_VERSION/aarch64_cortex-a53/kiddin9/"
-          echo "Fetching a53 directory page from $BASE_URL_A53"
-          wget -qO- "$BASE_URL_A53" | \
-          while IFS= read -r LINE; do
-              for PREFIX in "${FILE_PREFIXES[@]}"; do
-                  if [[ "$LINE" == *"$PREFIX"* ]]; then
-                      FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
-                      if [[ -z "$FILE" ]]; then
-                          # echo "No file found in line, skipping"
-                          continue
-                      fi
-                      exclude_file=false
-                      for exclude_prefix in "${EXCLUDE_PREFIXES[@]}"; do
-                          if [[ "$FILE" == $exclude_prefix* ]]; then
-                              exclude_file=true
-                              break
-                          fi
-                      done
-                      if $exclude_file; then
-                          echo "Skip file: $FILE"
-                          continue
-                      fi
-                      FILE_URL="${BASE_URL_A53}${FILE}"
-                      echo "Found file: $FILE_URL"
-                      curl -L --fail "$FILE_URL" -o "a53/depends/$(basename $FILE_URL)" -#
-                  fi
-              done
-          done
+      - name: Create self-extracting packages
+        run: |
+          cd makeself
+          ./makeself.sh passwall_x86_64/ passwall2_x86_64_${{ env.LATEST_TAG }}.run "by github action" ./install.sh
+          ./makeself.sh passwall_aarch64/ passwall2_aarch64_a53_${{ env.LATEST_TAG }}.run "by github action" ./install.sh
 
-      - name: download sing-box for a53 form aarch64_generic dir
+      - name: Check file sizes
         run: |
-          SINGBOX_PREFIXES=("sing-box")
-          BASE_URL_A53="https://dl.openwrt.ai/packages-24.10/aarch64_generic/kiddin9/"
-          echo "for sing-box Fetching a53 directory page from $BASE_URL_A53"
-          wget -qO- "$BASE_URL_A53" | \
-          while IFS= read -r LINE; do
-              for PREFIX in "${SINGBOX_PREFIXES[@]}"; do
-                  if [[ "$LINE" == *"$PREFIX"* ]]; then
-                      FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
-                      if [[ -z "$FILE" ]]; then
-                          # echo "No file found in line, skipping"
-                          continue
-                      fi
-                      FILE_URL="${BASE_URL_A53}${FILE}"
-                      echo "Found file: $FILE_URL"
-                      curl -L --fail "$FILE_URL" -o "a53/depends/$(basename $FILE_URL)" -#
-                  fi
-              done
-          done
-        
-      - name: mv pw2 to main dir
-        run: |
-          mv x86_64/depends/luci-app-passwall2*.ipk x86_64
-          mv a53/depends/luci-app-passwall2*.ipk a53
-          echo "List main dir ipk files for x86"
-          ls x86_64
-          echo "List main dir ipk files for a53"
-          ls a53
-      
-      - name: downloads libopenssl3 & libudns ipk
-        run: |
-          echo "downloading libopenssl3 ipk"
-          FILE_PREFIXES=("libopenssl3" "libudns")
-          BASE_URL_X86="https://dl.openwrt.ai/$PACKAGE_VERSION/x86_64/base/"
-          wget -qO- "$BASE_URL_X86" | \
-          while IFS= read -r LINE; do
-            for PREFIX in "${FILE_PREFIXES[@]}"; do
-                if [[ "$LINE" == *"$PREFIX"* ]]; then
-                    FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
-                    if [[ -z "$FILE" ]]; then
-                        # echo "No file found in line, skipping"
-                        continue
-                    fi
-                    FILE_URL="${BASE_URL_X86}${FILE}"
-                    echo "Found file: $FILE_URL"
-                    curl -L --fail "$FILE_URL" -o "x86_64/depends/$(basename $FILE_URL)" -#
-                  fi
-            done
-          done
-          BASE_URL_A53="https://dl.openwrt.ai/$PACKAGE_VERSION/aarch64_cortex-a53/base/"
-          wget -qO- "$BASE_URL_A53" | \
-          while IFS= read -r LINE; do
-              for PREFIX in "${FILE_PREFIXES[@]}"; do
-                  if [[ "$LINE" == *"$PREFIX"* ]]; then
-                      FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
-                      if [[ -z "$FILE" ]]; then
-                          # echo "No file found in line, skipping"
-                          continue
-                      fi
-                      FILE_URL="${BASE_URL_A53}${FILE}"
-                      echo "Found file: $FILE_URL"
-                      curl -L --fail "$FILE_URL" -o "a53/depends/$(basename $FILE_URL)" -#
-                    fi
-              done
-          done
-          echo "downloading libudns ipk"
-          BASE_URL_X86="https://dl.openwrt.ai/$PACKAGE_VERSION/x86_64/packages/"
-          wget -qO- "$BASE_URL_X86" | \
-          while IFS= read -r LINE; do
-            for PREFIX in "${FILE_PREFIXES[@]}"; do
-                if [[ "$LINE" == *"$PREFIX"* ]]; then
-                    FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
-                    if [[ -z "$FILE" ]]; then
-                        # echo "No file found in line, skipping"
-                        continue
-                    fi
-                    FILE_URL="${BASE_URL_X86}${FILE}"
-                      echo "Found file: $FILE_URL"
-                      curl -L --fail "$FILE_URL" -o "x86_64/depends/$(basename $FILE_URL)" -#
-                fi
-            done
-          done
-          BASE_URL_A53="https://dl.openwrt.ai/$PACKAGE_VERSION/aarch64_cortex-a53/packages/"
-          wget -qO- "$BASE_URL_A53" | \
-          while IFS= read -r LINE; do
-            for PREFIX in "${FILE_PREFIXES[@]}"; do
-                if [[ "$LINE" == *"$PREFIX"* ]]; then
-                    FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
-                    if [[ -z "$FILE" ]]; then
-                        # echo "No file found in line, skipping"
-                        continue
-                    fi
-                    FILE_URL="${BASE_URL_A53}${FILE}"
-                    echo "Found file: $FILE_URL"
-                    curl -L --fail "$FILE_URL" -o "a53/depends/$(basename $FILE_URL)" -#
-                fi
-            done
-          done
-          
+          ls -lh makeself/passwall2*.run
 
-      - name: List depends ipks
+      - name: Preparing release name
         run: |
-          echo "List x86 depends ipk files"
-          ls -lh x86_64/depends/
-          echo "List a53 depends ipk files"
-          ls -lh a53/depends/
-          
-      
-      - name: Create install.sh 
+          release_name=$(TZ="Asia/Shanghai" date +'%Y-%m-%d %H:%M Build')
+          echo "RELEASE_NAME=$release_name" >> $GITHUB_ENV
+
+      - name: Fetch latest release details
+        id: fetch_release_details
         run: |
-            echo -e "#!/bin/sh\n\nopkg update\nif [ \$? -ne 0 ]; then\n    echo \"update failed\"\n    exit 1\nfi\nopkg install depends/*.ipk --force-depends\nopkg install *.ipk --force-depends" > x86_64/install.sh
-            chmod +x x86_64/install.sh
-            cp x86_64/install.sh a53/
-  
-      - name: Create self-extracting archives
+          extra_content="![Github](https://img.shields.io/badge/Passwall2.run-123456?logo=github&logoColor=fff&labelColor=green&style=for-the-badge) [![Github](https://img.shields.io/badge/国内加速站下载-FC7C0D?logo=github&logoColor=fff&labelColor=000&style=for-the-badge)](https://wkdaily.cpolar.cn/archives/1) ![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/wukongdaily/RunFilesBuilder/${{ env.LATEST_TAG }}/total?style=for-the-badge&labelColor=black&color=%2325c2a0)"
+          release_notes=$(curl -s https://api.github.com/repos/xiaorouji/openwrt-passwall2/releases/latest | jq -r '.body')
+          if [ -z "$release_notes" ]; then
+            release_notes="No release notes available."
+          fi
+          echo -e "$extra_content\n\n$release_notes" > release_notes.md
+
+      - name: Print release notes
         run: |
-            mv -f x86_64 makeself
-            mv -f a53 makeself
-            cd makeself
-            ipk_file=$(ls x86_64/*.ipk)
-            appversion=$(basename "$ipk_file" | grep -oP '\d+\.\d+\.\d+')
-            echo "APP_VERSION=$appversion" >> $GITHUB_ENV
-            release_name=$(TZ="Asia/Shanghai" date +'%Y-%m-%d %H:%M Build')
-            echo "RELEASE_NAME=$release_name" >> $GITHUB_ENV
-            ./makeself.sh x86_64/ passwall2_x86_64_$appversion.run "by github action" ./install.sh
-            ./makeself.sh a53/ passwall2_aarch64_cortex-a53_$appversion.run "by github action" ./install.sh
-            
-            
-      
-      - name: Upload all .run files to GitHub Release
+          cat release_notes.md
+
+      - name: Generate new tag & release
+        uses: softprops/action-gh-release@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.LATEST_TAG }}
+          target_commitish: ${{ github.ref_name }}
+          prerelease: false
+          body_path: release_notes.md
+
+      - name: Upload run files as release assets
         uses: softprops/action-gh-release@v2.1.0
         with:
-          tag_name: ${{ env.APP_VERSION }}
-          name: "PassWall2-${{ env.APP_VERSION }}"
-          body: "![Github](https://img.shields.io/badge/passwall2.run-123456?logo=github&logoColor=fff&labelColor=AB5ED8&style=for-the-badge) [![Github](https://img.shields.io/badge/国内加速站下载-FC7C0D?logo=github&logoColor=fff&labelColor=000&style=for-the-badge)](https://wkdaily.cpolar.top/archives/1) ![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/wukongdaily/RunFilesBuilder/${{ env.APP_VERSION }}/total?style=for-the-badge&labelColor=black&color=%2325c2a0)"
-          files: makeself/*.run
+          tag_name: ${{ env.LATEST_TAG }}
+          name: "PassWall2-${{ env.LATEST_TAG }}"
+          files: makeself/passwall2*.run
           token: ${{ secrets.GITHUB_TOKEN }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-   
