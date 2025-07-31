@@ -1,0 +1,66 @@
+#=================================================
+# https://github.com/wukongdaily/RunFilesBuilder
+# Description: Build RunFiles using GitHub Actions
+# Lisence: MIT
+# Author: wukongdaily
+# Blog: wkdaily.cpolar.cn
+#=================================================
+name: Make Argon Theme run files
+
+on:
+  workflow_dispatch:
+
+jobs:
+  make-run:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v3
+
+      - name: 📦 安装 makeself 工具
+        run: sudo apt-get update && sudo apt-get install -y makeself curl
+
+      - name: 🚀 下载argon所有ipk
+        run: |
+          chmod +x shell/argon.sh
+          ./shell/argon.sh
+
+      - name: 📋 拷贝 install.sh 到各平台目录
+        run: |
+          cp shell/install.sh x86_64/install.sh
+          cp shell/install.sh aarch64_generic/install.sh
+          chmod +x x86_64/install.sh aarch64_generic/install.sh
+
+      - name: 🔍 提取版本号并打包
+        id: pack
+        run: |
+          mkdir -p output
+
+          # 获取版本
+          ARGON_IPK=$(ls aarch64_generic/luci-theme-argon_*.ipk | head -n 1)
+          VERSION=$(basename "$ARGON_IPK" | sed -n 's/^luci-theme-argon_\([^-]*-[^_]*\)_.*$/\1/p')
+
+          if [ -z "$VERSION" ]; then
+            echo "❌ 无法提取版本号"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # 打包两个平台
+          for PLATFORM in x86_64 aarch64_generic; do
+            makeself "$PLATFORM" "output/luci-theme-argon-${VERSION}_${PLATFORM}.run" \
+              "argon ${PLATFORM} Installer v${VERSION}" ./install.sh
+          done
+
+      - name: 📤 上传 .run 文件到 release
+        uses: softprops/action-gh-release@v2.1.0
+        with:
+          tag_name: "argon-${{ steps.pack.outputs.version }}"
+          name: "argon-${{ steps.pack.outputs.version }}"
+          body_path: ${{ github.workspace }}/common.md
+          files: output/*.run
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

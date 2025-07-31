@@ -1,0 +1,76 @@
+#=================================================
+# https://github.com/wukongdaily/RunFilesBuilder
+# Description: Build RunFiles using GitHub Actions
+# Lisence: MIT
+# Author: wukongdaily
+# Blog: wkdaily.cpolar.cn
+#=================================================
+name: Make DAE run files
+
+on:
+  workflow_dispatch:
+
+jobs:
+  make-run:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v3
+
+      - name: 📦 安装 makeself 工具
+        run: sudo apt-get update && sudo apt-get install -y makeself curl
+
+      - name: 🚀 下载 dae的所有ipk
+        run: |
+          chmod +x shell/dae.sh
+          ./shell/dae.sh
+
+      - name: 📋 拷贝 install.sh 到各平台目录
+        run: |
+          chmod +x shell/install.sh
+          cp shell/install.sh x86_64/install.sh
+          cp shell/install.sh aarch64_generic/install.sh
+          cp shell/install.sh aarch64_cortex-a53/install.sh
+
+      - name: 🔍 提取版本号并打包
+        id: pack
+        run: |
+          mkdir -p output
+
+          # 获取版本
+          APP_IPK=$(ls aarch64_generic/luci-app-dae_*.ipk | head -n 1)
+          VERSION=$(basename "$APP_IPK" | sed -n 's/^luci-app-dae_\(.*\)_all\.ipk$/\1/p')
+
+          if [ -z "$VERSION" ]; then
+            echo "❌ 无法提取版本号"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # 打包两个平台
+          for PLATFORM in x86_64 aarch64_generic aarch64_cortex-a53; do
+            makeself "$PLATFORM" "output/luci-app-dae-${VERSION}_${PLATFORM}.run" \
+              "dae ${PLATFORM} Installer v${VERSION}" ./install.sh
+          done
+
+      - name: Set version name without special chars
+        id: clean_version
+        run: |
+            version="${{ steps.pack.outputs.version }}"
+            version=${version%%~*}
+            echo "VERSION_CLEAN=$version" >> $GITHUB_ENV
+            echo "cleaned_version=$version" >> $GITHUB_OUTPUT
+
+
+      - name: 📤 上传 .run 文件到 release
+        uses: softprops/action-gh-release@v2.1.0
+        with:
+          tag_name: "dae-${{ steps.clean_version.outputs.cleaned_version }}"
+          name: "dae-${{ steps.clean_version.outputs.cleaned_version }}"
+          body_path: ${{ github.workspace }}/info/dae.md
+          files: output/*.run
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

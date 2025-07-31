@@ -1,0 +1,63 @@
+#=================================================
+# https://github.com/wukongdaily/RunFilesBuilder
+# Description: Build RunFiles using GitHub Actions
+# Lisence: MIT
+# Author: wukongdaily
+# Blog: wkdaily.cpolar.cn
+#=================================================
+name: Make iStore run file
+
+on:
+  workflow_dispatch:
+
+jobs:
+  make-run:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v3
+
+      - name: 📦 安装 makeself 工具
+        run: sudo apt-get update && sudo apt-get install -y makeself curl
+
+      - name: 🚀 下载 luci-app-store 的所有 ipk
+        run: |
+          chmod +x shell/store.sh
+          ./shell/store.sh
+
+      - name: 📋 拷贝 install.sh 到 store 文件夹
+        run: |
+          cp shell/install.sh store/install.sh
+          chmod +x store/install.sh
+
+      - name: 🔍 提取版本号并打包
+        id: pack
+        run: |
+          mkdir -p output
+
+          # 获取 luci-app-store 的 ipk 文件
+          STORE_IPK=$(ls store/luci-app-store_*.ipk | head -n 1)
+          VERSION=$(basename "$STORE_IPK" | sed -n 's/^luci-app-store_\([^-]*-[^_]*\)_.*$/\1/p')
+
+          if [ -z "$VERSION" ]; then
+            echo "❌ 无法提取版本号"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # 打包成 .run
+          makeself store "output/luci-app-store-${VERSION}_all.run" \
+            "iStore Installer v${VERSION}" ./install.sh
+
+      - name: 📤 上传 .run 文件到 release
+        uses: softprops/action-gh-release@v2.1.0
+        with:
+          tag_name: "iStore-${{ steps.pack.outputs.version }}"
+          name: "iStore-${{ steps.pack.outputs.version }}"
+          body_path: ${{ github.workspace }}/info/store.md
+          files: output/*.run
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
